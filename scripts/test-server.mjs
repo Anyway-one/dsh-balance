@@ -45,12 +45,13 @@ const mockInstallSettingsSection = () => {};
 /** Stateful settings mock with a writable `balance` namespace + revision tracking. */
 function makeSettings() {
 	const providers = {};
+	let proxy = false;
 	let revision = 0;
 	return {
 		get: (ns) => {
 			if (ns === "llm-deepseek") return { apiKeyEnv: "DEEPSEEK_API_KEY", baseURL: "https://api.deepseek.com" };
 			if (ns === "llm-pi-ai") return { providers: { ark: { displayName: "Ark", apiKeyEnv: "ARK_API_KEY", baseURL: "https://ark.example.com" } } };
-			if (ns === "balance") return { providers };
+			if (ns === "balance") return { providers, proxy };
 			return void 0;
 		},
 		describe: () => [{ ns: "balance", revision }],
@@ -62,6 +63,10 @@ function makeSettings() {
 				throw error;
 			}
 			for (const op of ops) {
+				if (op.path.length === 1 && op.path[0] === "proxy") {
+					proxy = op.op === "set" ? op.value === true : false;
+					continue;
+				}
 				const id = op.path[1];
 				const field = op.path[2];
 				const entry = { ...(providers[id] ?? {}) };
@@ -435,6 +440,41 @@ await test("mutate: rejects a non-boolean hidden value with 400", async () => {
 	const res = await call(handlerOf(routes, MUTATE_PATH), {
 		method: "POST",
 		body: { ops: [{ op: "set", path: ["providers", "zai", "hidden"], value: "yes" }], expectedRevision: 0 }
+	});
+	assert.equal(res.status, 400);
+	assert.equal(parsed(res).ok, false);
+});
+
+await test("state: reports the proxy flag", async () => {
+	const settings = makeSettings();
+	await settings.mutate("balance", [{ op: "set", path: ["proxy"], value: true }], 0);
+	const { routes } = await boot({ settings });
+	const res = await call(handlerOf(routes, STATE_PATH));
+	assert.equal(parsed(res).proxy, true);
+});
+
+await test("mutate: sets and unsets the proxy flag", async () => {
+	const settings = makeSettings();
+	const { routes } = await boot({ settings });
+	const set = await call(handlerOf(routes, MUTATE_PATH), {
+		method: "POST",
+		body: { ops: [{ op: "set", path: ["proxy"], value: true }], expectedRevision: 0 }
+	});
+	assert.equal(set.status, 200);
+	assert.equal(parsed(set).proxy, true);
+	const unset = await call(handlerOf(routes, MUTATE_PATH), {
+		method: "POST",
+		body: { ops: [{ op: "unset", path: ["proxy"] }], expectedRevision: 1 }
+	});
+	assert.equal(unset.status, 200);
+	assert.equal(parsed(unset).proxy, false);
+});
+
+await test("mutate: rejects a non-boolean proxy value with 400", async () => {
+	const { routes } = await boot();
+	const res = await call(handlerOf(routes, MUTATE_PATH), {
+		method: "POST",
+		body: { ops: [{ op: "set", path: ["proxy"], value: "yes" }], expectedRevision: 0 }
 	});
 	assert.equal(res.status, 400);
 	assert.equal(parsed(res).ok, false);

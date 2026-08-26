@@ -142,13 +142,15 @@ DOMAIN-SUFFIX,moonshot.cn,DIRECT
 
 **Built-in fallback:** the plugin already treats the `198.18.0.0/15` pool as public (it is RFC 2544 benchmarking space, not a real LAN), so fake-ip proxies in TUN mode work out of the box. If yours still fails, use the `DIRECT` rule above — it's faster and keeps the traffic off the proxy.
 
+**Universal escape hatch — Proxy mode:** for any proxy / gateway / split-DNS setup the above doesn't cover, open **Settings → Plugins → Plugin configuration → Balance** and enable **Proxy mode**. It skips the strict DNS pinning + public-IP check and uses the system's normal connection, which works through any proxy. (Trade-off: this disables the DNS-rebinding protection for balance queries, so keep it off when you don't need it.)
+
 Note: server-side code changes (e.g. `lib/safe-fetch.js`) take effect after restarting `dsh web`; client-only changes after a hard refresh.
 
 ## Development & testing
 
 ```bash
 npm run check         # syntax checks for every module and script
-npm test              # 41 offline tests: balance schemes, safe-fetch policy, server boundary, settings/mutate, history
+npm test              # 45 offline tests: balance schemes, safe-fetch policy, server boundary, settings/mutate, history
 ```
 
 Tests are fully offline — no network, and the real `~/.dsh` is never touched (server tests redirect `DSH_HOME` to a temp dir).

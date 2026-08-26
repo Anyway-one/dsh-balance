@@ -26,13 +26,13 @@
 
 ```bash
 npm run check        # 全量语法检查
-npm test             # 41 个离线测试，全绿才可提交
+npm test             # 45 个离线测试，全绿才可提交
 ```
 
 ## 关键约定
 
 - 客户端设置持久化于 localStorage `dsh-balance:settings:v1`；`defaultSettings()` 即产品预设。
-- 配置卡片经 `/api/balance/state`（读）+ `/api/balance/mutate`（写）读写 settings 命名空间 `balance`；密钥经 `api.credentials.set`（connection RPC）写入，`api.credentials.describe` 读取「已配置」状态；`hidden` 开关经 mutate 写入，隐藏后该供应商从余额查询与悬浮窗中剔除。
+- 配置卡片经 `/api/balance/state`（读）+ `/api/balance/mutate`（写）读写 settings 命名空间 `balance`；密钥经 `api.credentials.set`（connection RPC）写入，`api.credentials.describe` 读取「已配置」状态；`hidden` 开关经 mutate 写入，隐藏后该供应商从余额查询与悬浮窗中剔除；顶层 `proxy` 布尔开关为「代理模式」，开启后 `safeFetch` 跳过 DNS 固定/公网校验走系统网络。
 - 悬浮窗在 wide 模式下经 `react-dom` portal 注入 sidebar（`[class*="footArea"]` 之前、`[class*="regionArea"]` 之后），用 `[class*="..."]` 子串匹配而非硬编码 hash 前缀；collapsed（rail）模式仍用固定小胶囊。
 - 历史采样限频默认 60s/供应商、上限 300 条/供应商（`lib/history.js`）；改采样语义需同步服务端断言。
 - 服务端余额缓存每 5 分钟有效，`refresh=1` 强制重查（`lib/index.js`）。

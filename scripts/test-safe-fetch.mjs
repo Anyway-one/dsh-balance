@@ -4,6 +4,7 @@
  * No network: DNS is injected, and only policy rejection is exercised.
  */
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { isPrivateAddress, resolvePublicAddress, safeFetch } from "../lib/safe-fetch.js";
 
 let passed = 0;
@@ -76,6 +77,33 @@ await test("safeFetch rejects private DNS answers", async () => {
 		() => safeFetch("https://api.deepseek.com/user/balance", {}, { lookup: async () => [{ address: "192.168.1.1", family: 4 }] }),
 		(error) => error.providerStatus === "unsupported"
 	);
+});
+
+await test("safeFetch with allowProxy skips DNS pinning and private-IP rejection", async () => {
+	const record = {};
+	const transport = {
+		httpsRequest: (url, options, callback) => {
+			record.url = url;
+			record.options = options;
+			const req = new EventEmitter();
+			req.end = () => {};
+			req.destroy = () => {};
+			queueMicrotask(() => {
+				const res = new EventEmitter();
+				res.statusCode = 200;
+				res.headers = {};
+				callback(res);
+				res.emit("data", Buffer.from("{}"));
+				res.emit("end");
+			});
+			return req;
+		},
+		httpRequest: () => { throw new Error("http transport must not be used"); }
+	};
+	const result = await safeFetch("https://192.168.1.1/user/balance", {}, { allowProxy: true, transport, lookup: async () => [{ address: "192.168.1.1", family: 4 }] });
+	assert.equal(result.ok, true);
+	assert.equal(record.options.servername, undefined);
+	assert.equal(record.options.lookup, undefined);
 });
 
 console.log(`\n${passed} safe-fetch tests passed`);
