@@ -4,17 +4,18 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `lib/index.js` | 服务端 Cordis 插件：2 个回环 GET 端点、凭据 seam、余额缓存、历史采样、5 分钟后台刷新 |
+| `lib/index.js` | 服务端 Cordis 插件：4 个回环端点（providers/balance/state/mutate）、settings 命名空间 `balance`、凭据 seam、余额缓存、历史采样、5 分钟后台刷新 |
 | `lib/balance.js` | 余额 scheme 注册表（DeepSeek/OpenRouter/Moonshot/Z.ai），金额统一规范为 `number` |
 | `lib/safe-fetch.js` | 上游安全请求：HTTPS 强制、DNS 固定防 rebinding、1 MiB 上限 |
 | `lib/history.js` | 每供应商余额趋势环形缓冲（只存数值，有界、限频） |
-| `lib/client.js` | 客户端悬浮窗 + 详情面板：无构建 `__ModuleLoader__` bundle（手写 jsx-runtime） |
+| `lib/client.js` | 客户端悬浮窗 + 详情面板 + 配置卡片（`settings.plugin.item`）：无构建 `__ModuleLoader__` bundle（手写 jsx-runtime） |
 | `scripts/test-*.mjs` | 离线测试（balance/safe-fetch/server） |
 
 ## 红线
 
-- 两个端点只接受回环 GET（peer socket 校验），绝不向公网/局域网开放。
-- 凭据只经 Harness credentials seam 解析，永不进响应/缓存/日志。
+- 四个端点只接受回环请求（读接口仅 GET，mutate 仅 POST，均校验 peer socket），绝不向公网/局域网开放。
+- 凭据只经 Harness credentials seam 解析，永不进响应/缓存/日志；配置卡片用 `api.credentials.set` 写入、不回显。
+- baseURL 覆盖写入 settings 命名空间 `balance`（`providers.<id>.baseURL`），必须校验为 https URL。
 - 历史缓冲只存数值（时间戳 + 余额 + 币种），永不保存密钥或对话文本。
 - 客户端无构建步骤：禁止引入 JSX 构建器依赖；改 `lib/client.js` 手写 `react_jsx_runtime` 调用。
 - 不要用 PowerShell 正则替换修改 `lib/` 源码（曾因此清空过文件）；一律用编辑工具逐段修改。
@@ -24,12 +25,13 @@
 
 ```bash
 npm run check        # 全量语法检查
-npm test             # 32 个离线测试，全绿才可提交
+npm test             # 37 个离线测试，全绿才可提交
 ```
 
 ## 关键约定
 
 - 客户端设置持久化于 localStorage `dsh-balance:settings:v1`；`defaultSettings()` 即产品预设。
+- 配置卡片经 `/api/balance/state`（读）+ `/api/balance/mutate`（写）读写 settings 命名空间 `balance`；密钥经 `api.credentials.set`（connection RPC）写入，`api.credentials.describe` 读取「已配置」状态。
 - 历史采样限频默认 60s/供应商、上限 300 条/供应商（`lib/history.js`）；改采样语义需同步服务端断言。
 - 服务端余额缓存每 5 分钟有效，`refresh=1` 强制重查（`lib/index.js`）。
 - 悬浮窗展示「余额状态」时：余额用主题色，健康绿 / 低余额黄 / 欠费红，其余信息用中性色阶。

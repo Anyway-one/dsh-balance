@@ -30,6 +30,10 @@ Every successful read appends a compact numeric sample to a bounded, persisted r
 
 The gear opens a panel listing full breakdowns per provider — available / topped-up / granted / used / total credits — plus the trend line, status, and the threshold control. One click on the ↻ refreshes everything.
 
+### 🛠️ Settings card
+
+Configure every provider from **Settings → Plugins → Plugin configuration → Balance**: API keys (stored in DSH's credential store) and optional base URL overrides — no manual YAML editing.
+
 ## Installation
 
 The repository is public and installable by anyone. Pick one of two paths:
@@ -44,7 +48,7 @@ Prerequisites: Node.js 20+ and pnpm (`corepack enable` or `npm i -g pnpm`) — D
 # 1. Add the plugin to the web profile (the profile auto-initializes on first use)
 npx @deepseek-ai/dsh plugin --profile web add "github:Anyway-one/dsh-balance"
 
-# 2. Put your provider key(s) in ~/.dsh/.credentials.yaml (see "Credentials" below)
+# 2. Configure keys in Settings → Plugins → Plugin configuration → Balance (see "Configuration" below)
 
 # 3. Boot the web GUI
 npx @deepseek-ai/dsh web
@@ -80,9 +84,18 @@ pnpm dsh web
 
 When developing `dsh-balance`: server-side changes need a `dsh web` restart; client-only changes (`lib/client.js`) apply after a hard refresh.
 
-## Credentials
+## Configuration
 
-Balance providers read credential references from `~/.dsh/.credentials.yaml`:
+### Graphical settings card (recommended)
+
+Open **Settings → Plugins → Plugin configuration → Balance**. The card lists every configured provider — enter each **API Key** and optionally override its **base URL**, then save.
+
+- Keys are written to DSH's credential store (write-only, never echoed back).
+- base URL overrides land in the plugin's settings namespace and apply to the next balance read.
+
+### Manual credentials (alternative)
+
+Under the hood the plugin reads the same credential references from `~/.dsh/.credentials.yaml`:
 
 ```yaml
 DEEPSEEK_API_KEY: sk-your-key-here            # official DeepSeek route
@@ -107,14 +120,16 @@ Moonshot / Kimi profiles under `llm-pi-ai` are discovered automatically and reus
 | --- | --- | --- |
 | `GET` | `/api/balance/providers` | provider list, balance scheme, and status summary |
 | `GET` | `/api/balance` | balances for every provider (`accounts[]`, each with a `history` trend); `?provider=<id>` for one, `refresh=1` to force an upstream query |
+| `GET` | `/api/balance/state` | provider list (`id`/`displayName`/`scheme`/`apiKeyEnv`/`baseURL`) + settings `revision`/`writable` for the config card |
+| `POST` | `/api/balance/mutate` | write per-provider base URL overrides (`{ops, expectedRevision}`) |
 
-Non-GET requests get `405`, non-loopback callers get `403`; every response is JSON with `Cache-Control: no-cache`.
+Read endpoints reject non-GET with `405`; non-loopback callers get `403`; every response is JSON with `Cache-Control: no-cache`.
 
 ## Development & testing
 
 ```bash
 npm run check         # syntax checks for every module and script
-npm test              # 32 offline tests: balance schemes, safe-fetch policy, server boundary, history
+npm test              # 37 offline tests: balance schemes, safe-fetch policy, server boundary, settings/mutate, history
 ```
 
 Tests are fully offline — no network, and the real `~/.dsh` is never touched (server tests redirect `DSH_HOME` to a temp dir).

@@ -30,6 +30,10 @@
 
 点击齿轮打开面板，逐个供应商展示完整明细——可用 / 充值 / 赠送 / 已用 / 总额度——外加趋势线、状态与阈值设置。点一下 ↻ 即可全部刷新。
 
+### 🛠️ 配置卡片
+
+在 **设置 → 插件 → 插件配置 → 余额 Balance** 中图形化配置每个供应商的 API Key（写入 DSH 凭据存储）与可选的接口地址（baseURL）覆盖——无需手改 YAML。
+
 ## 安装
 
 仓库公开，任何人都可以安装。二选一：
@@ -44,7 +48,7 @@
 # 1. 把插件装进 web profile（首次使用会自动初始化 profile）
 npx @deepseek-ai/dsh plugin --profile web add "github:Anyway-one/dsh-balance"
 
-# 2. 把供应商 Key 写入 ~/.dsh/.credentials.yaml（见下方「凭据配置」）
+# 2. 在 设置 → 插件 → 插件配置 → 余额 Balance 中配置 Key（见下方「配置」）
 
 # 3. 启动 web GUI
 npx @deepseek-ai/dsh web
@@ -80,9 +84,18 @@ pnpm dsh web
 
 开发 `dsh-balance` 时：服务端改动需重启 `dsh web`；纯客户端改动（`lib/client.js`）硬刷新即生效。
 
-## 凭据配置
+## 配置
 
-余额型供应商的凭据引用写在 `~/.dsh/.credentials.yaml`：
+### 图形化配置卡片（推荐）
+
+打开 **设置 → 插件 → 插件配置 → 余额 Balance**。卡片会列出所有已配置的供应商——填入每个供应商的 **API Key**，可选覆盖其 **接口地址（baseURL）**，然后保存。
+
+- Key 写入 DSH 凭据存储（只写、不回显）。
+- baseURL 覆盖写入插件自身的 settings 命名空间，下次查询余额即生效。
+
+### 手动凭据（备选）
+
+插件底层仍从 `~/.dsh/.credentials.yaml` 读取相同的凭据引用：
 
 ```yaml
 DEEPSEEK_API_KEY: sk-your-key-here            # DeepSeek 官方路由
@@ -107,14 +120,16 @@ Moonshot / Kimi 等 `llm-pi-ai` 中的 provider profile 会自动发现并复用
 | --- | --- | --- |
 | `GET` | `/api/balance/providers` | 供应商列表、余额 scheme 与状态摘要 |
 | `GET` | `/api/balance` | 所有供应商的余额（`accounts[]`，每个含 `history` 趋势）；`?provider=<id>` 查单个，`refresh=1` 强制刷新上游 |
+| `GET` | `/api/balance/state` | 供应商列表（`id`/`displayName`/`scheme`/`apiKeyEnv`/`baseURL`）+ 设置 `revision`/`writable`（供配置卡片） |
+| `POST` | `/api/balance/mutate` | 写入各供应商 baseURL 覆盖（`{ops, expectedRevision}`） |
 
-非 GET 返回 `405`，非回环请求返回 `403`；所有响应均为 JSON 并带 `Cache-Control: no-cache`。
+读接口非 GET 返回 `405`，非回环请求返回 `403`；所有响应均为 JSON 并带 `Cache-Control: no-cache`。
 
 ## 开发与验证
 
 ```bash
 npm run check         # 全量语法检查
-npm test              # 32 个离线测试：余额 scheme、安全边界、服务端边界、历史缓冲
+npm test              # 37 个离线测试：余额 scheme、安全边界、服务端边界、settings/mutate、历史缓冲
 ```
 
 所有测试完全离线，不访问网络、不触碰真实 `~/.dsh`（服务端测试重定向 `DSH_HOME` 到临时目录）。

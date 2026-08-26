@@ -10,7 +10,7 @@ import { EventEmitter } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { apply, BALANCE_PATH, PROVIDERS_PATH, isLoopbackAddress, resetBalanceHistoryState } from "../lib/index.js";
+import { apply, BALANCE_PATH, PROVIDERS_PATH, STATE_PATH, MUTATE_PATH, isLoopbackAddress, resetBalanceHistoryState } from "../lib/index.js";
 import { createHistory, parseHistory, recordSample, samplesOf, serializeHistory } from "../lib/history.js";
 
 const testHome = await mkdtemp(join(tmpdir(), "dsh-balance-test-"));
@@ -35,6 +35,45 @@ const SETTINGS = {
 		return void 0;
 	}
 };
+
+/** Minimal schemastery stand-in: enough for building the `balance` schema. */
+const MOCK_SCHEMA = { object: () => ({}), dict: () => ({}), string: () => ({}) };
+
+/** No-op settings-section installer for tests (the plugin reads via settings.get). */
+const mockInstallSettingsSection = () => {};
+
+/** Stateful settings mock with a writable `balance` namespace + revision tracking. */
+function makeSettings() {
+	const providers = {};
+	let revision = 0;
+	return {
+		get: (ns) => {
+			if (ns === "llm-deepseek") return { apiKeyEnv: "DEEPSEEK_API_KEY", baseURL: "https://api.deepseek.com" };
+			if (ns === "llm-pi-ai") return { providers: { ark: { displayName: "Ark", apiKeyEnv: "ARK_API_KEY", baseURL: "https://ark.example.com" } } };
+			if (ns === "balance") return { providers };
+			return void 0;
+		},
+		describe: () => [{ ns: "balance", revision }],
+		writable: true,
+		async mutate(ns, ops, expectedRevision) {
+			if (expectedRevision !== revision) {
+				const error = new Error("settings conflict");
+				error.code = "SETTINGS_CONFLICT";
+				throw error;
+			}
+			for (const op of ops) {
+				const id = op.path[1];
+				const field = op.path[2];
+				const entry = { ...(providers[id] ?? {}) };
+				if (op.op === "set") entry[field] = op.value;
+				else delete entry[field];
+				if (Object.keys(entry).length === 0) delete providers[id];
+				else providers[id] = entry;
+			}
+			revision += 1;
+		}
+	};
+}
 
 function credentials(keys = {}) {
 	return { resolve: async (ref) => ({ value: keys[ref] ?? "" }) };
@@ -87,6 +126,8 @@ async function boot(overrides = {}) {
 	};
 	await apply(ctx, {}, {
 		disableBackgroundRefresh: true,
+		Schema: MOCK_SCHEMA,
+		installSettingsSection: mockInstallSettingsSection,
 		...(overrides.deps ?? {})
 	});
 	return { routes, effects };
@@ -98,7 +139,7 @@ function handlerOf(routes, path) {
 	return route.handler;
 }
 
-async function call(handler, { method = "GET", url = "/", peer = "127.0.0.1", host = "localhost" } = {}) {
+async function call(handler, { method = "GET", url = "/", peer = "127.0.0.1", host = "localhost", body = void 0 } = {}) {
 	const res = {
 		status: null,
 		headers: null,
@@ -107,11 +148,22 @@ async function call(handler, { method = "GET", url = "/", peer = "127.0.0.1", ho
 			this.status = status;
 			this.headers = headers;
 		},
-		end(body) {
-			this.body += body ?? "";
+		end(chunk) {
+			this.body += chunk ?? "";
 		}
 	};
-	const req = { method, url, headers: { host }, socket: { remoteAddress: peer } };
+	const req = new EventEmitter();
+	req.method = method;
+	req.url = url;
+	req.headers = { host };
+	req.socket = { remoteAddress: peer };
+	req.destroy = () => {};
+	if (body !== void 0) {
+		queueMicrotask(() => {
+			req.emit("data", Buffer.from(JSON.stringify(body)));
+			req.emit("end");
+		});
+	}
 	await handler(req, res);
 	return res;
 }
@@ -122,9 +174,9 @@ function parsed(res) {
 
 //#region routing & fence
 
-await test("apply registers exactly two exact routes", async () => {
+await test("apply registers exactly four exact routes", async () => {
 	const { routes } = await boot();
-	assert.deepEqual(routes.map((r) => r.path).sort(), [BALANCE_PATH, PROVIDERS_PATH].sort());
+	assert.deepEqual(routes.map((r) => r.path).sort(), [BALANCE_PATH, PROVIDERS_PATH, STATE_PATH, MUTATE_PATH].sort());
 	for (const route of routes) assert.equal(route.kind, "exact");
 });
 
@@ -262,6 +314,79 @@ await test("providers: lists official route, pi-ai profiles, and legacy entries"
 	assert.equal(deepseek.configured, true);
 	const ark = body.providers.find((p) => p.id === "ark");
 	assert.equal(ark.scheme, null);
+});
+
+//#endregion
+
+//#region settings state + mutate
+
+await test("state: lists providers with apiKeyEnv/baseURL/scheme + revision + writable", async () => {
+	const { routes } = await boot();
+	const res = await call(handlerOf(routes, STATE_PATH));
+	assert.equal(res.status, 200);
+	const body = parsed(res);
+	assert.equal(body.ok, true);
+	assert.equal(body.revision, 0);
+	assert.equal(body.writable, true);
+	const ids = body.providers.map((p) => p.id);
+	assert.ok(ids.includes("deepseek-official"));
+	const deepseek = body.providers.find((p) => p.id === "deepseek-official");
+	assert.equal(deepseek.scheme, "deepseek");
+	assert.equal(deepseek.apiKeyEnv, "DEEPSEEK_API_KEY");
+	assert.equal(deepseek.baseURL, "https://api.deepseek.com");
+	const ark = body.providers.find((p) => p.id === "ark");
+	assert.equal(ark.scheme, null);
+});
+
+await test("mutate: sets a baseURL override and re-reads state", async () => {
+	const settings = makeSettings();
+	const { routes } = await boot({ settings });
+	const res = await call(handlerOf(routes, MUTATE_PATH), {
+		method: "POST",
+		body: { ops: [{ op: "set", path: ["providers", "deepseek-official", "baseURL"], value: "https://proxy.example.com" }], expectedRevision: 0 }
+	});
+	assert.equal(res.status, 200);
+	const body = parsed(res);
+	assert.equal(body.ok, true);
+	const deepseek = body.providers.find((p) => p.id === "deepseek-official");
+	assert.equal(deepseek.baseURL, "https://proxy.example.com");
+});
+
+await test("mutate: rejects a non-https baseURL with 400", async () => {
+	const { routes } = await boot();
+	const res = await call(handlerOf(routes, MUTATE_PATH), {
+		method: "POST",
+		body: { ops: [{ op: "set", path: ["providers", "deepseek-official", "baseURL"], value: "http://insecure.example.com" }], expectedRevision: 0 }
+	});
+	assert.equal(res.status, 400);
+	assert.equal(parsed(res).ok, false);
+});
+
+await test("mutate: non-loopback peer is refused with 403", async () => {
+	const { routes } = await boot();
+	const res = await call(handlerOf(routes, MUTATE_PATH), {
+		method: "POST",
+		peer: "10.0.0.1",
+		host: "example.com",
+		body: { ops: [{ op: "set", path: ["providers", "deepseek-official", "baseURL"], value: "https://proxy.example.com" }], expectedRevision: 0 }
+	});
+	assert.equal(res.status, 403);
+});
+
+await test("balance: baseURL override changes the upstream query URL", async () => {
+	const settings = makeSettings();
+	await settings.mutate("balance", [{ op: "set", path: ["providers", "deepseek-official", "baseURL"], value: "https://proxy.example.com" }], 0);
+	const record = {};
+	const { routes } = await boot({
+		settings,
+		deps: {
+			lookup: publicLookup,
+			transport: fakeTransport(() => ({ statusCode: 200, body: JSON.stringify({ is_available: true, balance_infos: [{ currency: "CNY", total_balance: "5.00" }] }) }), record)
+		}
+	});
+	const res = await call(handlerOf(routes, BALANCE_PATH), { url: "/api/balance?provider=deepseek-official" });
+	assert.equal(parsed(res).account.status, "ok");
+	assert.equal(String(record.url), "https://proxy.example.com/user/balance");
 });
 
 //#endregion
