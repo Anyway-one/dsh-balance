@@ -1,0 +1,50 @@
+{
+  "name": "dsh-balance",
+  "description": "Multi-provider balance monitor with low-balance alerts and trend history for the dsh web GUI",
+  "version": "0.1.0",
+  "private": true,
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "balance",
+    "credits"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./balance": "./lib/balance.js",
+    "./safe-fetch": "./lib/safe-fetch.js",
+    "./history": "./lib/history.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
+    }
+  },
+  "scripts": {
+    "check": "node --check lib/index.js && node --check lib/balance.js && node --check lib/safe-fetch.js && node --check lib/history.js && node --check lib/client.js && node --check scripts/test-balance.mjs && node --check scripts/test-safe-fetch.mjs && node --check scripts/test-server.mjs",
+    "test": "node scripts/test-balance.mjs && node scripts/test-safe-fetch.mjs && node scripts/test-server.mjs",
+    "test:balance": "node scripts/test-balance.mjs",
+    "test:safe-fetch": "node scripts/test-safe-fetch.mjs",
+    "test:server": "node scripts/test-server.mjs"
+  },
+  "license": "MIT"
+}
