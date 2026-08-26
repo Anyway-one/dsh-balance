@@ -30,20 +30,55 @@ Every successful read appends a compact numeric sample to a bounded, persisted r
 
 The gear opens a panel listing full breakdowns per provider — available / topped-up / granted / used / total credits — plus the trend line, status, and the threshold control. One click on the ↻ refreshes everything.
 
-## Quick start
+## Installation
 
-Requires a DeepSeek Harness `web` profile (`@deepseek-ai/dsh >= 0.1.0-rc.6`).
+The repository is public and installable by anyone. Pick one of two paths:
+
+### npx — regular users (recommended)
+
+Run the published `@deepseek-ai/dsh` CLI through `npx`, with no global install.
+
+Prerequisites: Node.js 20+ and pnpm (`corepack enable` or `npm i -g pnpm`) — DSH manages profile plugins by forwarding to pnpm.
 
 ```bash
-dsh plugin --profile web add "github:<you>/dsh-balance"
+# 1. Add the plugin to the web profile (the profile auto-initializes on first use)
+npx @deepseek-ai/dsh plugin --profile web add "github:Anyway-one/dsh-balance"
+
+# 2. Put your provider key(s) in ~/.dsh/.credentials.yaml (see "Credentials" below)
+
+# 3. Boot the web GUI
+npx @deepseek-ai/dsh web
 ```
 
-Restart `dsh web`, hard-refresh the browser, and the dock appears at the bottom-left. Update / remove:
+Hard-refresh the browser; the dock appears at the bottom-left. Update / remove:
 
 ```bash
-dsh plugin --profile web update dsh-balance
-dsh plugin --profile web remove dsh-balance
+npx @deepseek-ai/dsh plugin --profile web update dsh-balance
+npx @deepseek-ai/dsh plugin --profile web remove dsh-balance
 ```
+
+### pnpm + Harness source — developers (recommended)
+
+Clone the Harness, build it, and run it from source with pnpm; link the plugin from git, or from a local checkout when developing it.
+
+```bash
+# 1. Clone and build the harness
+git clone https://github.com/deepseek-ai/deepseek-harness.git
+cd deepseek-harness
+pnpm install
+pnpm run build
+
+# 2a. Install the plugin from git
+pnpm dsh plugin --profile web add "github:Anyway-one/dsh-balance"
+
+# 2b. ...or link a local checkout while developing dsh-balance itself
+pnpm dsh plugin --profile web add "file:/absolute/path/to/dsh-balance"
+
+# 3. Boot the web GUI from source
+pnpm dsh web
+```
+
+When developing `dsh-balance`: server-side changes need a `dsh web` restart; client-only changes (`lib/client.js`) apply after a hard refresh.
 
 ## Credentials
 

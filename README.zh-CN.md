@@ -30,20 +30,55 @@
 
 点击齿轮打开面板，逐个供应商展示完整明细——可用 / 充值 / 赠送 / 已用 / 总额度——外加趋势线、状态与阈值设置。点一下 ↻ 即可全部刷新。
 
-## 快速安装
+## 安装
 
-需要 DeepSeek Harness `web` profile（`@deepseek-ai/dsh >= 0.1.0-rc.6`）。
+仓库公开，任何人都可以安装。二选一：
+
+### npx —— 普通用户（推荐）
+
+通过 `npx` 运行已发布的 `@deepseek-ai/dsh` CLI，无需全局安装。
+
+前置条件：Node.js 20+ 与 pnpm（`corepack enable` 或 `npm i -g pnpm`）——DSH 通过转发给 pnpm 来管理 profile 插件。
 
 ```bash
-dsh plugin --profile web add "github:<you>/dsh-balance"
+# 1. 把插件装进 web profile（首次使用会自动初始化 profile）
+npx @deepseek-ai/dsh plugin --profile web add "github:Anyway-one/dsh-balance"
+
+# 2. 把供应商 Key 写入 ~/.dsh/.credentials.yaml（见下方「凭据配置」）
+
+# 3. 启动 web GUI
+npx @deepseek-ai/dsh web
 ```
 
-重启 `dsh web` 并在浏览器硬刷新，左下角出现悬浮窗。更新 / 卸载：
+浏览器硬刷新后，左下角出现悬浮窗。更新 / 卸载：
 
 ```bash
-dsh plugin --profile web update dsh-balance
-dsh plugin --profile web remove dsh-balance
+npx @deepseek-ai/dsh plugin --profile web update dsh-balance
+npx @deepseek-ai/dsh plugin --profile web remove dsh-balance
 ```
+
+### pnpm + Harness 源码 —— 开发者（推荐）
+
+克隆 Harness 并用 pnpm 从源码构建、运行；再从 git 安装本插件，或链接本地 checkout 进行开发。
+
+```bash
+# 1. 克隆并构建 Harness
+git clone https://github.com/deepseek-ai/deepseek-harness.git
+cd deepseek-harness
+pnpm install
+pnpm run build
+
+# 2a. 从 git 安装插件
+pnpm dsh plugin --profile web add "github:Anyway-one/dsh-balance"
+
+# 2b. 或：开发 dsh-balance 本身时，链接本地 checkout
+pnpm dsh plugin --profile web add "file:/absolute/path/to/dsh-balance"
+
+# 3. 从源码启动 web GUI
+pnpm dsh web
+```
+
+开发 `dsh-balance` 时：服务端改动需重启 `dsh web`；纯客户端改动（`lib/client.js`）硬刷新即生效。
 
 ## 凭据配置
 
