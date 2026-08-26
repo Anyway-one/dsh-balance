@@ -14,6 +14,7 @@
 ## 红线
 
 - 四个端点只接受回环请求（读接口仅 GET，mutate 仅 POST，均校验 peer socket），绝不向公网/局域网开放。
+- **零 npm 依赖**：不要在 package.json 声明 `@deepseek-ai/*`（如 schemastery、dsh-settings）的 dependency/peerDependency——它们由 Harness 经 `$DSH_HOME/profiles/node_modules` 扁平符号链接提供；声明会触发 pnpm `nodeLinker: hoisted` + `autoInstallPeers: false` 下 `_lockfileToHoistedDepGraph` 崩溃。运行时 `await import("@deepseek-ai/…")` 走该扁平回退解析。
 - 凭据只经 Harness credentials seam 解析，永不进响应/缓存/日志；配置卡片用 `api.credentials.set` 写入、不回显。
 - baseURL 覆盖与 `hidden` 隐藏标记都写入 settings 命名空间 `balance`（`providers.<id>.baseURL` / `providers.<id>.hidden`）；baseURL 必须校验为 https URL，hidden 必须为布尔。
 - 历史缓冲只存数值（时间戳 + 余额 + 币种），永不保存密钥或对话文本。
