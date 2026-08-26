@@ -125,6 +125,25 @@ Moonshot / Kimi 等 `llm-pi-ai` 中的 provider profile 会自动发现并复用
 
 读接口非 GET 返回 `405`，非回环请求返回 `403`；所有响应均为 JSON 并带 `Cache-Control: no-cache`。
 
+## 常见问题：代理工具（Clash / Surge / Shadowrocket）
+
+如果你开着 **fake-ip 模式**的代理，可能会看到「接口地址不受支持（需 HTTPS 公网地址）」，余额一直查不到；关掉代理就能查到。
+
+**原因**：fake-ip 代理会把所有 DNS 都劫持成 `198.18.0.0/15` 这个虚拟段里的假 IP（例如 `api.deepseek.com` → `198.18.0.13`），而不是真实公网 IP；插件的 DNS 固定安全层会拒绝非公网地址，于是查询被拦。
+
+**推荐做法**：让这些供应商域名直连，解析到真实公网 IP——在代理里加 `DIRECT` 规则：
+
+```
+DOMAIN-SUFFIX,deepseek.com,DIRECT
+DOMAIN-SUFFIX,openrouter.ai,DIRECT
+DOMAIN-SUFFIX,z.ai,DIRECT
+DOMAIN-SUFFIX,moonshot.cn,DIRECT
+```
+
+**内置兜底**：插件已经把 `198.18.0.0/15` 视为公网（它是 RFC 2544 基准测试段，不是真实内网），所以 TUN 模式的 fake-ip 代理通常开箱即用。若仍失败，就用上面的 `DIRECT` 规则——更快，也完全绕开代理。
+
+注意：服务端代码改动（如 `lib/safe-fetch.js`）需重启 `dsh web` 才生效；纯客户端改动硬刷新即可。
+
 ## 开发与验证
 
 ```bash

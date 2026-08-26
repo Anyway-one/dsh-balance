@@ -125,6 +125,25 @@ Moonshot / Kimi profiles under `llm-pi-ai` are discovered automatically and reus
 
 Read endpoints reject non-GET with `405`; non-loopback callers get `403`; every response is JSON with `Cache-Control: no-cache`.
 
+## Troubleshooting: proxy tools (Clash / Surge / Shadowrocket)
+
+If you run a proxy in **fake-ip mode**, you may see `Unsupported endpoint (HTTPS public URL required)` and balances stop loading while the proxy is on — but work again as soon as you turn it off.
+
+**Why:** fake-ip proxies answer every DNS query with a virtual IP from the `198.18.0.0/15` pool (e.g. `api.deepseek.com` → `198.18.0.13`) instead of the real public IP, and the plugin's DNS-pinning safety layer rejects non-public addresses.
+
+**Fix (recommended):** bypass the provider domains so they resolve to their real public IPs — add a `DIRECT` rule in your proxy:
+
+```
+DOMAIN-SUFFIX,deepseek.com,DIRECT
+DOMAIN-SUFFIX,openrouter.ai,DIRECT
+DOMAIN-SUFFIX,z.ai,DIRECT
+DOMAIN-SUFFIX,moonshot.cn,DIRECT
+```
+
+**Built-in fallback:** the plugin already treats the `198.18.0.0/15` pool as public (it is RFC 2544 benchmarking space, not a real LAN), so fake-ip proxies in TUN mode work out of the box. If yours still fails, use the `DIRECT` rule above — it's faster and keeps the traffic off the proxy.
+
+Note: server-side code changes (e.g. `lib/safe-fetch.js`) take effect after restarting `dsh web`; client-only changes after a hard refresh.
+
 ## Development & testing
 
 ```bash
