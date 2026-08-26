@@ -32,6 +32,8 @@ await test("isPrivateAddress covers private/loopback/link-local/multicast/docume
 	assert.equal(isPrivateAddress("1.2.3.4"), false);
 	assert.equal(isPrivateAddress("198.18.0.1"), false, "fake-ip pool is allowed for proxy users");
 	assert.equal(isPrivateAddress("198.19.255.254"), false, "fake-ip pool is allowed for proxy users");
+	assert.equal(isPrivateAddress("::ffff:0:c612:d"), false, "Shadowrocket malformed IPv4-mapped fake-ip is allowed");
+	assert.equal(isPrivateAddress("::ffff:198.18.0.13"), false, "IPv4-mapped fake-ip is allowed");
 	assert.equal(isPrivateAddress("::1"), true);
 	assert.equal(isPrivateAddress("fe80::1"), true);
 	assert.equal(isPrivateAddress("::ffff:127.0.0.1"), true);
