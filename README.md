@@ -11,7 +11,7 @@ A focused **multi-provider balance monitor** for the [DeepSeek Harness](https://
 
 ### 🌐 Multi-provider dock
 
-One row per configured provider, always visible at the bottom-left. A status dot and colored value tell you the health of each account at a glance; the dock collapses into a small pill when the sidebar folds.
+One row per configured provider, embedded at the bottom of the sidebar (between the session list and the settings foot, full sidebar width). A status dot and colored value tell you the health of each account at a glance; the dock collapses into a small pill when the sidebar folds.
 
 - 🟢 **ok** — balance healthy
 - 🟡 **low** — below the provider's threshold
@@ -32,7 +32,7 @@ The gear opens a panel listing full breakdowns per provider — available / topp
 
 ### 🛠️ Settings card
 
-Configure every provider from **Settings → Plugins → Plugin configuration → Balance**: API keys (stored in DSH's credential store) and optional base URL overrides — no manual YAML editing.
+Configure every provider from **Settings → Plugins → Plugin configuration → Balance**: API keys (stored in DSH's credential store), optional base URL overrides, and a **show/hide** toggle per provider — hide any unwanted auto-discovered provider (e.g. a pi-ai profile without a public balance API). No manual YAML editing.
 
 ## Installation
 
@@ -129,7 +129,7 @@ Read endpoints reject non-GET with `405`; non-loopback callers get `403`; every 
 
 ```bash
 npm run check         # syntax checks for every module and script
-npm test              # 37 offline tests: balance schemes, safe-fetch policy, server boundary, settings/mutate, history
+npm test              # 41 offline tests: balance schemes, safe-fetch policy, server boundary, settings/mutate, history
 ```
 
 Tests are fully offline — no network, and the real `~/.dsh` is never touched (server tests redirect `DSH_HOME` to a temp dir).

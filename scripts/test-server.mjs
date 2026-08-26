@@ -37,7 +37,7 @@ const SETTINGS = {
 };
 
 /** Minimal schemastery stand-in: enough for building the `balance` schema. */
-const MOCK_SCHEMA = { object: () => ({}), dict: () => ({}), string: () => ({}) };
+const MOCK_SCHEMA = { object: () => ({}), dict: () => ({}), string: () => ({}), boolean: () => ({}) };
 
 /** No-op settings-section installer for tests (the plugin reads via settings.get). */
 const mockInstallSettingsSection = () => {};
@@ -387,6 +387,57 @@ await test("balance: baseURL override changes the upstream query URL", async () 
 	const res = await call(handlerOf(routes, BALANCE_PATH), { url: "/api/balance?provider=deepseek-official" });
 	assert.equal(parsed(res).account.status, "ok");
 	assert.equal(String(record.url), "https://proxy.example.com/user/balance");
+});
+
+await test("state: reports the hidden flag for each provider", async () => {
+	const settings = makeSettings();
+	await settings.mutate("balance", [{ op: "set", path: ["providers", "ark", "hidden"], value: true }], 0);
+	const { routes } = await boot({ settings });
+	const res = await call(handlerOf(routes, STATE_PATH));
+	const body = parsed(res);
+	const ark = body.providers.find((p) => p.id === "ark");
+	assert.equal(ark.hidden, true);
+	const deepseek = body.providers.find((p) => p.id === "deepseek-official");
+	assert.equal(deepseek.hidden, false);
+});
+
+await test("balance: hidden providers are excluded from the account list", async () => {
+	const settings = makeSettings();
+	await settings.mutate("balance", [{ op: "set", path: ["providers", "zai", "hidden"], value: true }], 0);
+	const { routes } = await boot({ settings });
+	const res = await call(handlerOf(routes, BALANCE_PATH), { url: "/api/balance" });
+	const body = parsed(res);
+	const ids = body.accounts.map((a) => a.id);
+	assert.ok(ids.includes("deepseek-official"));
+	assert.equal(ids.includes("zai"), false, "hidden provider excluded");
+});
+
+await test("mutate: sets and unsets the hidden flag", async () => {
+	const settings = makeSettings();
+	const { routes } = await boot({ settings });
+	const set = await call(handlerOf(routes, MUTATE_PATH), {
+		method: "POST",
+		body: { ops: [{ op: "set", path: ["providers", "zai", "hidden"], value: true }], expectedRevision: 0 }
+	});
+	assert.equal(set.status, 200);
+	const zai = parsed(set).providers.find((p) => p.id === "zai");
+	assert.equal(zai.hidden, true);
+	const unset = await call(handlerOf(routes, MUTATE_PATH), {
+		method: "POST",
+		body: { ops: [{ op: "unset", path: ["providers", "zai", "hidden"] }], expectedRevision: 1 }
+	});
+	assert.equal(unset.status, 200);
+	assert.equal(parsed(unset).providers.find((p) => p.id === "zai").hidden, false);
+});
+
+await test("mutate: rejects a non-boolean hidden value with 400", async () => {
+	const { routes } = await boot();
+	const res = await call(handlerOf(routes, MUTATE_PATH), {
+		method: "POST",
+		body: { ops: [{ op: "set", path: ["providers", "zai", "hidden"], value: "yes" }], expectedRevision: 0 }
+	});
+	assert.equal(res.status, 400);
+	assert.equal(parsed(res).ok, false);
 });
 
 //#endregion
