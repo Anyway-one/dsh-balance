@@ -1,7 +1,7 @@
 {
   "name": "dsh-balance",
   "description": "Multi-provider balance monitor with low-balance alerts and trend history for the dsh web GUI",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "keywords": [
     "deepseek",
